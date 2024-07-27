@@ -12,7 +12,7 @@
     - [容器内程序执行](#容器内程序执行)
     - [容器内文件打开](#容器内文件打开)
     - [容器间互访](#容器间互访)
-  - [Promethus/Grafana数据可视化](#Prometheus/Grafana数据可视化)
+  - [Prometheus/Grafana数据可视化](#Prometheus/Grafana数据可视化)
   - [容器异常检测算法](#容器异常检测算法)
   - [参考资料](#参考资料)
 
