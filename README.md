@@ -88,7 +88,7 @@ sudo ./ContGuard.py
 
     清空日志可使用 `bash ./clearlog.sh`
     
-### Promethus/Grafana数据可视化配置
+### Prometheus/Grafana数据可视化配置
 
 - 安装prometheus
 
@@ -355,13 +355,13 @@ net:::scid:cd5a737db6b-ubuntu1(port:33428 common:curl)-->dcid-39841878b98-nginx1
 
 
 ```
-## Promethus/Grafana数据可视化
+## Prometheus/Grafana数据可视化
 
-![](./docs/images/grafana.png)
+![](./docs/images/ContGuard_gra.jpg)
 
 ## Seccomp Docker Profile生成
 
-可以根据ContXRay生成的syscall调用信息，生成该容器所需的系统调用白名单列表，从而最大程度降低攻击平面。
+可以根据ContGuard生成的syscall调用信息，生成该容器所需的系统调用白名单列表，从而最大程度降低攻击平面。
 
 可通过`gen_seccomp.py`生成：
 
