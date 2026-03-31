@@ -91,11 +91,13 @@ BPF_PERF_OUTPUT(cv_event);
 static int strcmp_64(char *s1, char *s2){
     int i;
     #pragma clang loop unroll(full)
-    for(i=63;i>0;i--){
+    for(i=0;i<FILENAME_LEN;i++){
         if(s1[i] != s2[i])
-            break;
+            return 1;
+        if(s1[i] == 0)
+            return 0;
     }
-    return i;
+    return 0;
 }
 
 /**
@@ -137,7 +139,23 @@ static int strcat_64(char *s1,char *s2,char *result){ //return s1+s2
  * @return {*} The level of the task
  */
 static int get_level(struct task_struct *task){
-    return(task->nsproxy->pid_ns_for_children->level);
+    struct nsproxy *nsp = NULL;
+    struct pid_namespace *pidns = NULL;
+    int level = 0;
+
+    if(task == NULL)
+        return 0;
+
+    bpf_probe_read_kernel(&nsp, sizeof(void *), &task->nsproxy);
+    if(nsp == NULL)
+        return 0;
+
+    bpf_probe_read_kernel(&pidns, sizeof(void *), &nsp->pid_ns_for_children);
+    if(pidns == NULL)
+        return 0;
+
+    bpf_probe_read_kernel(&level, sizeof(int), &pidns->level);
+    return level;
 }
 
 /**
@@ -153,10 +171,23 @@ static int get_cont_id(struct task_struct *task, char *cid){
     struct kernfs_node *knode, *pknode;
     char tmp_cid[CONTAINER_ID_LEN];
     char *_cid;
+    if(task == NULL)
+        return 0;
+
     css = task->cgroups;
+    if(css == NULL)
+        return 0;
+
     bpf_probe_read(&sbs, sizeof(void *), &css->subsys[0]);
+    if(sbs == NULL)
+        return 0;
+
         bpf_probe_read(&cg,  sizeof(void *), &sbs->cgroup);
+        if(cg == NULL)
+            return 0;
         bpf_probe_read(&knode, sizeof(void *), &cg->kn);
+        if(knode == NULL)
+            return 0;
         bpf_probe_read(&pknode, sizeof(void *), &knode->parent);
         if(pknode != NULL) {
             char *aus;
@@ -168,7 +199,7 @@ static int get_cont_id(struct task_struct *task, char *cid){
                 _cid = (char *)&tmp_cid;
             bpf_probe_read_str(cid,CONTAINER_ID_USE_LEN,_cid);
         }
-    return sizeof(cid);
+    return strlen_64(cid);
 }
 
 /**
@@ -266,6 +297,8 @@ int trace_fileopen(struct pt_regs *ctx){
     if(get_level(curr_task)){
         struct fileopen_info info = {.pid = (u32)curr_task->pid};
         struct file * fi = (struct file *)PT_REGS_RC(ctx);
+        if(fi == NULL || (unsigned long)fi > (unsigned long)-4096)
+            return 0;
         get_cont_id(curr_task,info.cid);
         bpf_probe_read_kernel_str(info.fsname,FSNAME_LEN,fi->f_inode->i_sb->s_type->name);
         get_full_filename(fi->f_path.dentry,info.filename);
@@ -299,15 +332,16 @@ int trace_sock_alloc(struct pt_regs *ctx){
  * @return {*}
  */
 int trace_tcp_visit(struct pt_regs *ctx){
-    struct task_struct *sock_task;
+    struct task_struct *sock_task = NULL;
     struct task_struct **psock_task;
     struct socket *sock;
     struct sock *sk = (struct sock*)PT_REGS_PARM1(ctx);
     bpf_probe_read_kernel(&sock,sizeof(void *),&sk->sk_socket);
     psock_task = socktable.lookup((void *)&sock);
-    if(psock_task){
-        sock_task = *psock_task;
-    }
+    if(psock_task == NULL)
+        return 0;
+
+    sock_task = *psock_task;
     if(get_level(sock_task)){
         struct visit_value value = {};
         get_cont_id(sock_task,value.cid);
@@ -338,18 +372,17 @@ int trace_tcp_visit(struct pt_regs *ctx){
  * @return {*}
  */
 int trace_tcp_visted(struct pt_regs *ctx){
-    struct task_struct *sock_task;
+    struct task_struct *sock_task = NULL;
     struct task_struct **psock_task;
     struct socket *sock;
     struct sock *sk = (struct sock*)PT_REGS_PARM1(ctx);
     bpf_probe_read_kernel(&sock,sizeof(void *),&sk->sk_socket);
     psock_task = socktable.lookup((void *)&sock);
-    if(psock_task){
-        sock_task = *psock_task;
-    }
+    if(psock_task == NULL)
+        return 0;
+
+    sock_task = *psock_task;
     if(get_level(sock_task)){
-        struct task_struct *test;
-        get_socked_task(sk,test);
         struct sk_buff *skb = (struct sk_buff *)PT_REGS_PARM2(ctx);
         struct tcp_skb_cb *tcb = TCP_SKB_CB(skb);
         char scid[CONTAINER_ID_USE_LEN];
@@ -386,7 +419,7 @@ int trace_tcp_visted(struct pt_regs *ctx){
         visit_key.seq = seq;
         ret = visit.lookup(&visit_key);
         if(ret){
-        visit.delete((struct visit_key_t *)&ret);
+        visit.delete(&visit_key);
         struct visit_info vinfo = {};
         get_cont_id(sock_task,dcid);
         bpf_probe_read_str(scid, CONTAINER_ID_USE_LEN, ret->cid);    

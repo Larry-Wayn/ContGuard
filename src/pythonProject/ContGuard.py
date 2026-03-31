@@ -12,19 +12,24 @@ logo_text = """
 print(logo_text)
 
 from bcc import BPF
-from bcc.syscall import syscall_name, syscalls
 from time import time, strftime, localtime
 from struct import pack
 from socket import inet_ntop, ntohs, AF_INET, AF_INET6
-from datasave import ebpf_data, get_container_name, cont_table, start_time
+from data_save import ebpf_data, get_container_name, cont_table, start_time
 import os
 import sys
 import docker
 
+try:
+    from bcc.syscall import syscall_name
+except Exception:
+    def syscall_name(syscall_id):
+        return str(syscall_id).encode()
+
 
 def sys_print(str):
     time_str = strftime("%H:%M:%S", localtime())
-    print("\033[1;31m * [ContXRay]:%s - %s\033[0m" % (time_str, str))
+    print("\033[1;31m * [ContGuard]:%s - %s\033[0m" % (time_str, str))
 
 
 # 判断是否root权限启动
@@ -42,18 +47,22 @@ print(start_time, file=RUNNING_file)
 RUNNING_file.close()
 
 # 建立docker 容器id-容器名对照表
-client = docker.from_env()
-containers = client.containers.list()
-
-for i in containers:
-    cont_table[i.id[0:11]] = i.name
+try:
+    client = docker.from_env()
+    containers = client.containers.list()
+    for i in containers:
+        cont_table[i.id[0:11]] = i.name
+except Exception as e:
+    sys_print("Docker API unavailable, container names will fallback to None: %s" % e)
 
 # LOGO
 print(logo_text)
 sys_print("Waiting for BPF program loading...")
 
-# 加载BPF程序
-b = BPF(src_file='bpf.c')
+# 加载BPF程序（使用脚本相对路径，避免工作目录变化导致找不到文件）
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BPF_SRC = os.path.abspath(os.path.join(BASE_DIR, "..", "bpf.c"))
+b = BPF(src_file=BPF_SRC)
 sys_print("BPF program is loaded")
 
 # 将BPF程序挂载到相应的点

@@ -1,0 +1,37 @@
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    DOCKER_HOST=unix:///var/run/docker.sock
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    auditd \
+    python3 \
+    python3-pip \
+    python3-setuptools \
+    python3-bpfcc \
+    bpfcc-tools \
+    libbpfcc-dev \
+    clang \
+    llvm \
+    gcc \
+    make \
+    libc6-dev \
+    libelf-dev \
+    iproute2 \
+    kmod \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY src/requirements.txt /tmp/requirements.txt
+RUN pip3 install --no-cache-dir -r /tmp/requirements.txt
+
+COPY src /app/src
+RUN mkdir -p /app/src/logs/syscall /app/src/logs/exec /app/src/logs/fileopen /app/src/logs/netvisit
+
+WORKDIR /app/src
+
+ENTRYPOINT ["python3", "./pythonProject/ContGuard.py"]
