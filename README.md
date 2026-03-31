@@ -149,7 +149,7 @@ jobs -l
 ```
 再运行p_expoter.py
 ```
-sudo python3 ./p_expoter.py
+sudo python3 ./prometheus_expoter.py
 ```
 若运行文件p_expoter.py 遇到问题：未安装模块，则执行
 `sudo apt install python3-prometheus-client`
@@ -172,8 +172,10 @@ sudo python3 ./p_expoter.py
     ├── gen_seccomp.py          seccomp profile生成工具
     ├── grafana_panel_json.txt  Grafana Dashboard配置文件
     ├── logs                    日志目录
-    ├── p_expoter.py            prometheus expoter
-    └── requirements.txt        python依赖库列表
+    ├── prometheus_expoter.py   prometheus expoter
+    ├── requirements.txt        python依赖库列表
+    ├──run_contguard_macos_docker.sh
+    └──Dockerfile.macos
 ```
 
 ## 架构设计
